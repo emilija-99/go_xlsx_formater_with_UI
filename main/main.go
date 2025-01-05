@@ -1,13 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 	"github.com/xuri/excelize/v2"
 )
@@ -39,7 +43,7 @@ func runUI() {
 	_inputFileName.SetPlaceHolder("Enter File Name")
 	_btnSubmitFile := widget.NewButton("Submit File", func() {
 		fmt.Println("Submit File")
-		// importExportFile.findFile(_inputFileName.Text)
+		findFile(_window, _inputFileName.Text)
 	})
 
 	_container := container.NewVBox(_btnUpload, _selectedFile, _lblOr, _inputFileName, _btnSubmitFile)
@@ -66,23 +70,35 @@ func showFilePicker(_window fyne.Window) {
 		fmt.Println("File URI: ", _fileURI)
 
 		_selectedFile.SetText(saveFile)
-		checkFile()
+		checkFile(_window, "")
 
 	}, _window)
 }
-func checkFile() {
-	fmt.Println("Init: import_export_file")
+func checkFile(_window fyne.Window, file_path string) {
+	fmt.Println("Init: import_export_file", file_path)
 
 	if file != nil {
 		return
 	}
 
-	fmt.Println("File: ", _fileURI)
-	file, err := excelize.OpenFile(_fileURI.Path())
-
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
+	if file_path != "" {
+		fmt.Println("File Path: ", file_path)
+		var err error
+		file, err = excelize.OpenFile(file_path)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			// dialog.ShowError(err, _window)
+			return
+		}
+	} else {
+		fmt.Println("File: ", _fileURI)
+		var err error
+		file, err = excelize.OpenFile(_fileURI.Path())
+		if err != nil {
+			fmt.Println("Error: ", err)
+			dialog.ShowError(err, _window)
+			return
+		}
 	}
 
 	fmt.Println("Rows: ", file)
@@ -93,6 +109,7 @@ func checkFile() {
 
 	if err != nil {
 		fmt.Println("Error: ", err)
+		dialog.ShowError(err, _window)
 		return
 	}
 	// file_path := ""
@@ -101,21 +118,13 @@ func checkFile() {
 	fmt.Println("Rows LEN: ", len(rows))
 	if len(rows[0]) == 1 {
 		fmt.Println("Format this file.")
-		formatFile(file, rows)
+		formatFile(file, rows, _window)
 	} else {
 		fmt.Println("File is already formatted.")
 	}
-	// f, err := excelize.OpenFile("")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-
-	// getUploadedFile(f)
-
 }
 
-func formatFile(f *excelize.File, rows [][]string) {
+func formatFile(f *excelize.File, rows [][]string, _window fyne.Window) {
 	f.NewSheet("Formatted")
 	// rows_len := len(rows)
 	for rowIndex, row := range rows {
@@ -126,11 +135,52 @@ func formatFile(f *excelize.File, rows [][]string) {
 		}
 	}
 
-	f.Save()
+	if err := f.Save(); err != nil {
+		fmt.Println("Error: ", err)
+		dialog.ShowError(err, _window)
+		return
+	} else {
+		dialog.ShowInformation("Success", "File has been formatted successfully.", _window)
+	}
 }
 
-func saveFile(fileName string, f *excelize.File) {
+func findFile(_window fyne.Window, name string) {
+	DownloadDirNames := []string{"Downloads", "download", "Download", "downloads"}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
+	for _, dirName := range DownloadDirNames {
+		filePath := filepath.Join(homeDir, dirName, name)
+		fmt.Println("File Path: ", filePath)
+		for _, ddn := range DownloadDirNames {
+			var dir = filepath.Join(homeDir, ddn)
+
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				fmt.Println(dir, "does not exist")
+				dialog.ShowError(err, _window)
+				break
+
+			} else {
+				fmt.Println("The provided directory named", dir, "exists")
+				// downloadDir = dir
+				_fileURI = storage.NewFileURI(dir + "/" + name)
+
+				if _, err := os.Stat(_fileURI.Path()); os.IsNotExist(err) {
+					fmt.Println("File does not exist")
+					dialog.ShowError(errors.New("File does not exist"), _window)
+				} else {
+					checkFile(_window, _fileURI.Path())
+					break
+				}
+
+				break
+			}
+
+		}
+	}
 }
 
 func handleError(err error) {
