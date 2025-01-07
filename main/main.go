@@ -45,6 +45,10 @@ func runUI() {
 	_inputFileName.SetPlaceHolder("Enter File Name")
 	_btnSubmitFile := widget.NewButton("Submit File", func() {
 		// fmt.Println("Submit File")
+		if _inputFileName.Text == "" {
+			dialog.ShowInformation("Error", "Please enter a file name", _window)
+			return
+		}
 		findFile(_window, _inputFileName.Text)
 	})
 	_toolbar := widget.NewToolbar(
@@ -123,10 +127,19 @@ func checkFile(_window fyne.Window, file_path string) {
 
 	if len(rows[0]) == 1 {
 		formatFile(file, rows, _window)
+	} else {
+		dialog.ShowInformation("Error", "File is already formatted.", _window)
 	}
 }
 
 func formatFile(f *excelize.File, rows [][]string, _window fyne.Window) {
+	for _, sheetName := range f.GetSheetList() {
+		if sheetName == "Formatted" {
+			dialog.ShowInformation("Error", "File is already formatted.", _window)
+			return
+		}
+	}
+
 	f.NewSheet("Formatted")
 	for rowIndex, row := range rows {
 		rowData := strings.Split(row[0], ",")
