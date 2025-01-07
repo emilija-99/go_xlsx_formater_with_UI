@@ -34,7 +34,7 @@ func runUI() {
 
 	_selectedFile = widget.NewLabel("No file selected")
 
-	_btnUpload = widget.NewButton("Upload file from you ", func() {
+	_btnUpload = widget.NewButton("Upload file", func() {
 		// fmt.Println("Upload File!")
 		showFilePicker(_window)
 
@@ -71,9 +71,9 @@ func showFilePicker(_window fyne.Window) {
 		if f == nil {
 			return
 		}
-
+		fmt.Println(f.URI().Path())
 		saveFile := f.URI().Path()
-		// fmt.Println("File URI: ", saveFile)
+		fmt.Println("File URI: ", saveFile)
 
 		_fileURI = f.URI()
 
@@ -85,58 +85,49 @@ func showFilePicker(_window fyne.Window) {
 	}, _window)
 }
 func checkFile(_window fyne.Window, file_path string) {
-	fmt.Println("Init: import_export_file", file_path)
+	// fmt.Println("Init: import_export_file", file_path)
 
 	if file != nil {
 		return
 	}
 
 	if file_path != "" {
-		fmt.Println("File Path: ", file_path)
+		// fmt.Println("File Path: ", file_path)
 		var err error
 		file, err = excelize.OpenFile(file_path)
 		if err != nil {
-			fmt.Println("Error: ", err)
+			// fmt.Println("Error: ", err)
 			// dialog.ShowError(err, _window)
 			return
 		}
 	} else {
-		fmt.Println("File: ", _fileURI)
+		// fmt.Println("File: ", _fileURI)
 		var err error
 		file, err = excelize.OpenFile(_fileURI.Path())
 		if err != nil {
-			fmt.Println("Error: ", err)
+			// fmt.Println("Error: ", err)
 			dialog.ShowError(err, _window)
 			return
 		}
 	}
-
-	fmt.Println("Rows: ", file)
 
 	sheets := file.GetSheetList()
 
 	rows, err := file.GetRows(sheets[0])
 
 	if err != nil {
-		fmt.Println("Error: ", err)
+		// fmt.Println("Error: ", err)
 		dialog.ShowError(err, _window)
 		return
 	}
-	// file_path := ""
-	fmt.Println("Sheet Length: ", sheets[0], rows[0], len(rows[0]))
 
-	fmt.Println("Rows LEN: ", len(rows))
 	if len(rows[0]) == 1 {
-		fmt.Println("Format this file.")
 		formatFile(file, rows, _window)
-	} else {
-		fmt.Println("File is already formatted.")
 	}
 }
 
 func formatFile(f *excelize.File, rows [][]string, _window fyne.Window) {
 	f.NewSheet("Formatted")
-	// rows_len := len(rows)
 	for rowIndex, row := range rows {
 		rowData := strings.Split(row[0], ",")
 		for colIndex, cellValue := range rowData {
@@ -158,43 +149,33 @@ func findFile(_window fyne.Window, name string) {
 	DownloadDirNames := []string{"Downloads", "download", "Download", "downloads"}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println(err)
+		dialog.ShowError(err, _window)
 		return
 	}
+
 	var _err error
 	for _, dirName := range DownloadDirNames {
-		filePath := filepath.Join(homeDir, dirName, name)
-		fmt.Println("File Path: ", filePath)
+		dir := filepath.Join(homeDir, dirName)
+		filePath := filepath.Join(dir, name)
 
-		for _, ddn := range DownloadDirNames {
-			var dir = filepath.Join(homeDir, ddn)
-
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				fmt.Println(dir, "does not exist")
-				dialog.ShowError(err, _window)
-				break
-
-			} else {
-				fmt.Println("The provided directory named", dir, "exists")
-				// downloadDir = dir
-				_fileURI = storage.NewFileURI(dir + "/" + name)
-
-				if _, err := os.Stat(_fileURI.Path()); os.IsNotExist(err) {
-					fmt.Println("File does not exist")
-					_err = errors.New("File does not exist")
-				} else {
-					checkFile(_window, _fileURI.Path())
-					break
-				}
-
-				break
-			}
-
+		fmt.Println("Checking directory:", dir)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			// Skip non-existing directories
+			fmt.Println("Directory does not exist:", dir)
+			continue
 		}
 
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			fmt.Println("File does not exist in directory:", dir)
+			_err = errors.New("File does not exist in any known directory")
+		} else {
+			fmt.Println("File found:", filePath)
+			_fileURI := storage.NewFileURI(filePath)
+			checkFile(_window, _fileURI.Path())
+			return
+		}
 	}
 
-	// fmt.Println("Error: ", _err)
 	if _err != nil {
 		dialog.ShowError(_err, _window)
 	}
